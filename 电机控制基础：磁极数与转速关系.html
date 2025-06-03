@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CORDIC算法详解与演示</title>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script>
+        window.MathJax = {
+            tex: {
+                inlineMath: [['$', '$'], ['\\(', '\\)']],
+                displayMath: [['$$', '$$'], ['\\[', '\\]']]
+            }
+        };
+    </script>
+    <style>
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            line-height: 1.6;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 10px;
+        }
+        h2 {
+            color: #34495e;
+            margin-top: 30px;
+            border-left: 4px solid #3498db;
+            padding-left: 15px;
+        }
+        h3 {
+            color: #2980b9;
+            margin-top: 25px;
+        }
+        .math-block {
+            background: #f8f9fa;
+            padding: 15px;
+            margin: 15px 0;
+            border-left: 4px solid #3498db;
+            border-radius: 5px;
+        }
+        .demo-section {
+            background: #ecf0f1;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .input-group {
+            margin: 10px 0;
+        }
+        label {
+            display: inline-block;
+            width: 120px;
+            font-weight: bold;
+        }
+        input {
+            padding: 8px;
+            border: 1px solid #bdc3c7;
+            border-radius: 4px;
+            width: 150px;
+        }
+        button {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background: #2980b9;
+        }
+        .result {
+            background: #e8f5e8;
+            border: 1px solid #27ae60;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .iteration-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+        }
+        .iteration-table th, .iteration-table td {
+            border: 1px solid #bdc3c7;
+            padding: 8px;
+            text-align: center;
+        }
+        .iteration-table th {
+            background: #3498db;
+            color: white;
+        }
+        .iteration-table tr:nth-child(even) {
+            background: #f2f2f2;
+        }
+        .canvas-container {
+            text-align: center;
+            margin: 20px 0;
+        }
+        canvas {
+            border: 2px solid #34495e;
+            background: white;
+        }
+        .algorithm-box {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+        }
+        .note {
+            background: #d1ecf1;
+            border-left: 4px solid #bee5eb;
+            padding: 10px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>CORDIC算法详解与演示</h1>
+        
+        <h2>1. CORDIC算法简介</h2>
+        <p>CORDIC（COordinate Rotation DIgital Computer）算法是一种高效的迭代算法，用于计算三角函数、双曲函数、平方根、对数等数学函数。该算法最初由Jack Volder在1959年提出，特别适合硬件实现，因为它只使用简单的加法、减法和移位运算。</p>
+        
+        <h2>2. 数学原理</h2>
+        
+        <h3>2.1 旋转模式的基本思想</h3>
+        <p>CORDIC算法的核心思想是通过一系列预定义的角度旋转来逼近目标角度。在二维平面中，将向量$(x, y)$逆时针旋转角度$\theta$的变换矩阵为：</p>
+        
+        <div class="math-block">
+            $$\begin{bmatrix} x' \\ y' \end{bmatrix} = \begin{bmatrix} \cos\theta & -\sin\theta \\ \sin\theta & \cos\theta \end{bmatrix} \begin{bmatrix} x \\ y \end{bmatrix}$$
+        </div>
+        
+        <h3>2.2 CORDIC旋转公式推导</h3>
+        <p>将旋转角度限制为$\theta_i = \arctan(2^{-i})$，其中$i = 0, 1, 2, ...$。对于这些特殊角度：</p>
+        
+        <div class="math-block">
+            $$\cos(\arctan(2^{-i})) = \frac{1}{\sqrt{1 + 2^{-2i}}}$$
+            $$\sin(\arctan(2^{-i})) = \frac{2^{-i}}{\sqrt{1 + 2^{-2i}}}$$
+        </div>
+        
+        <p>旋转矩阵可以写成：</p>
+        
+        <div class="math-block">
+            $$\begin{bmatrix} x_{i+1} \\ y_{i+1} \end{bmatrix} = \frac{1}{\sqrt{1 + 2^{-2i}}} \begin{bmatrix} 1 & -\sigma_i 2^{-i} \\ \sigma_i 2^{-i} & 1 \end{bmatrix} \begin{bmatrix} x_i \\ y_i \end{bmatrix}$$
+        </div>
+        
+        <p>其中$\sigma_i = \pm 1$表示旋转方向。</p>
+        
+        <h3>2.3 CORDIC迭代公式</h3>
+        <p>忽略增益因子$K_i = \frac{1}{\sqrt{1 + 2^{-2i}}}$，得到简化的迭代公式：</p>
+        
+        <div class="math-block">
+            $$x_{i+1} = x_i - \sigma_i \cdot y_i \cdot 2^{-i}$$
+            $$y_{i+1} = y_i + \sigma_i \cdot x_i \cdot 2^{-i}$$
+            $$z_{i+1} = z_i - \sigma_i \cdot \arctan(2^{-i})$$
+        </div>
+        
+        <h3>2.4 增益因子补偿</h3>
+        <p>总的增益因子为：</p>
+        
+        <div class="math-block">
+            $$K = \prod_{i=0}^{n-1} \frac{1}{\sqrt{1 + 2^{-2i}}} \approx 0.607252935...$$
+        </div>
+        
+        <h2>3. 算法实现</h2>
+        
+        <div class="algorithm-box">
+            <h3>CORDIC旋转模式算法：</h3>
+            <ol>
+                <li>初始化：$x_0 = K \cdot x$, $y_0 = K \cdot y$, $z_0 = \theta$</li>
+                <li>对于$i = 0$ 到 $n-1$：
+                    <ul>
+                        <li>如果$z_i \geq 0$：$\sigma_i = 1$，否则$\sigma_i = -1$</li>
+                        <li>$x_{i+1} = x_i - \sigma_i \cdot y_i \cdot 2^{-i}$</li>
+                        <li>$y_{i+1} = y_i + \sigma_i \cdot x_i \cdot 2^{-i}$</li>
+                        <li>$z_{i+1} = z_i - \sigma_i \cdot \arctan(2^{-i})$</li>
+                    </ul>
+                </li>
+                <li>结果：$x_n$, $y_n$为旋转后的坐标</li>
+            </ol>
+        </div>
+        
+        <h2>4. 交互式演示</h2>
+        
+        <div class="demo-section">
+            <h3>三角函数计算</h3>
+            <div class="input-group">
+                <label>角度 (弧度):</label>
+                <input type="number" id="angleInput" value="0.5" step="0.1">
+                <button onclick="calculateTrig()">计算</button>
+            </div>
+            
+            <div class="input-group">
+                <label>迭代次数:</label>
+                <input type="number" id="iterationsInput" value="16" min="1" max="20">
+            </div>
+            
+            <div id="trigResult" class="result" style="display:none;"></div>
+            
+            <div id="iterationDetails" style="display:none;">
+                <h4>迭代过程：</h4>
+                <table id="iterationTable" class="iteration-table">
+                    <thead>
+                        <tr>
+                            <th>i</th>
+                            <th>x_i</th>
+                            <th>y_i</th>
+                            <th>z_i</th>
+                            <th>σ_i</th>
+                            <th>arctan(2^-i)</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+        
+        <div class="demo-section">
+            <h3>向量旋转可视化</h3>
+            <div class="input-group">
+                <label>初始 X:</label>
+                <input type="number" id="vectorX" value="1" step="0.1">
+                <label>初始 Y:</label>
+                <input type="number" id="vectorY" value="0" step="0.1">
+                <label>旋转角度:</label>
+                <input type="number" id="rotationAngle" value="0.785" step="0.1">
+                <button onclick="visualizeRotation()">旋转</button>
+            </div>
+            
+            <div class="canvas-container">
+                <canvas id="rotationCanvas" width="400" height="400"></canvas>
+            </div>
+            
+            <div id="rotationResult" class="result" style="display:none;"></div>
+        </div>
+        
+        <h2>5. 应用领域</h2>
+        <ul>
+            <li><strong>数字信号处理</strong>：FFT、滤波器设计</li>
+            <li><strong>计算机图形学</strong>：旋转变换、3D渲染</li>
+            <li><strong>通信系统</strong>：调制解调、相位检测</li>
+            <li><strong>导航系统</strong>：坐标转换、姿态计算</li>
+            <li><strong>科学计算</strong>：数值分析、工程计算</li>
+        </ul>
+        
+        <div class="note">
+            <strong>注意：</strong>CORDIC算法的主要优势在于只使用移位和加减运算，非常适合硬件实现。收敛角度范围为$[-\pi/2, \pi/2]$，对于其他角度需要进行预处理。
+        </div>
+    </div>
+
+    <script>
+        // 预计算的 arctan 值
+        const atanTable = [
+            0.7853981633974483,  // arctan(2^0)
+            0.4636476090008061,  // arctan(2^-1)
+            0.24497866312686414, // arctan(2^-2)
+            0.12435499454676144, // arctan(2^-3)
+            0.06241880999595735, // arctan(2^-4)
+            0.031239833430268277, // arctan(2^-5)
+            0.015623728620476831, // arctan(2^-6)
+            0.007812341060101111, // arctan(2^-7)
+            0.0039062301319669718, // arctan(2^-8)
+            0.0019531225164788188, // arctan(2^-9)
+            0.0009765621895593195, // arctan(2^-10)
+            0.0004882812111948983, // arctan(2^-11)
+            0.00024414062014936177, // arctan(2^-12)
+            0.00012207031189367021, // arctan(2^-13)
+            6.103515617420877e-05, // arctan(2^-14)
+            3.0517578115526096e-05, // arctan(2^-15)
+            1.5258789061315762e-05, // arctan(2^-16)
+            7.62939453110197e-06,   // arctan(2^-17)
+            3.814697265606496e-06,  // arctan(2^-18)
+            1.907348632810187e-06   // arctan(2^-19)
+        ];
+        
+        // CORDIC 增益因子
+        const K = 0.6072529350088812561694;
+        
+        function cordic(x0, y0, z0, iterations) {
+            let x = x0;
+            let y = y0;
+            let z = z0;
+            let history = [];
+            
+            for (let i = 0; i < iterations; i++) {
+                let sigma = z >= 0 ? 1 : -1;
+                let powerOfTwo = Math.pow(2, -i);
+                
+                history.push({
+                    i: i,
+                    x: x,
+                    y: y,
+                    z: z,
+                    sigma: sigma,
+                    atan: atanTable[i]
+                });
+                
+                let newX = x - sigma * y * powerOfTwo;
+                let newY = y + sigma * x * powerOfTwo;
+                let newZ = z - sigma * atanTable[i];
+                
+                x = newX;
+                y = newY;
+                z = newZ;
+            }
+            
+            return { x: x, y: y, z: z, history: history };
+        }
+        
+        function calculateTrig() {
+            let angle = parseFloat(document.getElementById('angleInput').value);
+            let iterations = parseInt(document.getElementById('iterationsInput').value);
+            
+            // 角度范围检查
+            if (Math.abs(angle) > Math.PI/2) {
+                alert('CORDIC算法的收敛范围是 [-π/2, π/2]，请输入范围内的角度！');
+                return;
+            }
+            
+            // 使用 CORDIC 计算
+            let result = cordic(K, 0, angle, iterations);
+            
+            // 真实值
+            let realCos = Math.cos(angle);
+            let realSin = Math.sin(angle);
+            
+            // 显示结果
+            let resultDiv = document.getElementById('trigResult');
+            resultDiv.innerHTML = `
+                <h4>计算结果：</h4>
+                <p><strong>CORDIC cos(${angle.toFixed(6)}) = ${result.x.toFixed(8)}</strong></p>
+                <p><strong>CORDIC sin(${angle.toFixed(6)}) = ${result.y.toFixed(8)}</strong></p>
+                <p>真实 cos(${angle.toFixed(6)}) = ${realCos.toFixed(8)}</p>
+                <p>真实 sin(${angle.toFixed(6)}) = ${realSin.toFixed(8)}</p>
+                <p>cos 误差: ${Math.abs(result.x - realCos).toExponential(3)}</p>
+                <p>sin 误差: ${Math.abs(result.y - realSin).toExponential(3)}</p>
+                <p>剩余角度: ${result.z.toFixed(8)}</p>
+            `;
+            resultDiv.style.display = 'block';
+            
+            // 显示迭代过程
+            displayIterationTable(result.history);
+        }
+        
+        function displayIterationTable(history) {
+            let tableBody = document.getElementById('iterationTable').getElementsByTagName('tbody')[0];
+            tableBody.innerHTML = '';
+            
+            history.forEach(item => {
+                let row = tableBody.insertRow();
+                row.insertCell(0).textContent = item.i;
+                row.insertCell(1).textContent = item.x.toFixed(8);
+                row.insertCell(2).textContent = item.y.toFixed(8);
+                row.insertCell(3).textContent = item.z.toFixed(8);
+                row.insertCell(4).textContent = item.sigma;
+                row.insertCell(5).textContent = item.atan.toFixed(8);
+            });
+            
+            document.getElementById('iterationDetails').style.display = 'block';
+        }
+        
+        function visualizeRotation() {
+            let x = parseFloat(document.getElementById('vectorX').value);
+            let y = parseFloat(document.getElementById('vectorY').value);
+            let angle = parseFloat(document.getElementById('rotationAngle').value);
+            
+            if (Math.abs(angle) > Math.PI/2) {
+                alert('CORDIC算法的收敛范围是 [-π/2, π/2]，请输入范围内的角度！');
+                return;
+            }
+            
+            // CORDIC 旋转
+            let result = cordic(x, y, angle, 16);
+            
+            // 真实旋转
+            let realX = x * Math.cos(angle) - y * Math.sin(angle);
+            let realY = x * Math.sin(angle) + y * Math.cos(angle);
+            
+            // 绘制结果
+            drawRotation(x, y, result.x, result.y, realX, realY);
+            
+            // 显示数值结果
+            let resultDiv = document.getElementById('rotationResult');
+            resultDiv.innerHTML = `
+                <h4>旋转结果：</h4>
+                <p>原始向量: (${x.toFixed(4)}, ${y.toFixed(4)})</p>
+                <p><strong>CORDIC结果: (${result.x.toFixed(6)}, ${result.y.toFixed(6)})</strong></p>
+                <p>真实结果: (${realX.toFixed(6)}, ${realY.toFixed(6)})</p>
+                <p>X误差: ${Math.abs(result.x - realX).toExponential(3)}</p>
+                <p>Y误差: ${Math.abs(result.y - realY).toExponential(3)}</p>
+            `;
+            resultDiv.style.display = 'block';
+        }
+        
+        function drawRotation(x1, y1, x2, y2, realX, realY) {
+            let canvas = document.getElementById('rotationCanvas');
+            let ctx = canvas.getContext('2d');
+            let centerX = canvas.width / 2;
+            let centerY = canvas.height / 2;
+            let scale = 100;
+            
+            // 清空画布
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // 绘制坐标轴
+            ctx.strokeStyle = '#bdc3c7';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(0, centerY);
+            ctx.lineTo(canvas.width, centerY);
+            ctx.moveTo(centerX, 0);
+            ctx.lineTo(centerX, canvas.height);
+            ctx.stroke();
+            
+            // 绘制网格
+            for (let i = -2; i <= 2; i++) {
+                if (i !== 0) {
+                    ctx.beginPath();
+                    ctx.moveTo(centerX + i * scale, 0);
+                    ctx.lineTo(centerX + i * scale, canvas.height);
+                    ctx.moveTo(0, centerY + i * scale);
+                    ctx.lineTo(canvas.width, centerY + i * scale);
+                    ctx.stroke();
+                }
+            }
+            
+            // 绘制原始向量
+            ctx.strokeStyle = '#3498db';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(centerX, centerY);
+            ctx.lineTo(centerX + x1 * scale, centerY - y1 * scale);
+            ctx.stroke();
+            
+            // 绘制CORDIC结果
+            ctx.strokeStyle = '#e74c3c';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(centerX, centerY);
+            ctx.lineTo(centerX + x2 * scale, centerY - y2 * scale);
+            ctx.stroke();
+            
+            // 绘制真实结果（虚线）
+            ctx.strokeStyle = '#27ae60';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([5, 5]);
+            ctx.beginPath();
+            ctx.moveTo(centerX, centerY);
+            ctx.lineTo(centerX + realX * scale, centerY - realY * scale);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            
+            // 添加标签
+            ctx.fillStyle = '#2c3e50';
+            ctx.font = '12px Arial';
+            ctx.fillText('原始向量', centerX + x1 * scale + 5, centerY - y1 * scale);
+            ctx.fillStyle = '#e74c3c';
+            ctx.fillText('CORDIC结果', centerX + x2 * scale + 5, centerY - y2 * scale);
+            ctx.fillStyle = '#27ae60';
+            ctx.fillText('真实结果', centerX + realX * scale + 5, centerY - realY * scale - 15);
+        }
+        
+        // 页面加载时执行默认计算
+        window.onload = function() {
+            calculateTrig();
+            visualizeRotation();
+        };
+    </script>
+</body>
+</html>
